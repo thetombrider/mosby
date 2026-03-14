@@ -187,15 +187,23 @@ final class TrackedLocalProcessTerminalView: LocalProcessTerminalView {
             let cmd = inputBuffer.trimmingCharacters(in: .whitespaces)
             inputBuffer = ""
 
+            // Only record to history when the shell itself is the foreground process.
+            // Inside a subprocess (claude, vim, python REPL, etc.) tcgetpgrp returns
+            // a different process group, so we skip the history callback entirely.
+            let isAtShellPrompt: Bool = {
+                guard let proc = self.process else { return true }
+                return tcgetpgrp(proc.childfd) == getpgid(proc.shellPid)
+            }()
+
             if !cmd.isEmpty, let expanded = aliasStore?.expand(cmd) {
                 // Clear the typed alias with Ctrl-U, then send the expanded command.
                 let replacement = "\u{0015}" + expanded + "\r"
                 let bytes = [UInt8](replacement.utf8)
                 super.send(source: source, data: bytes[...])
-                onCommandSubmitted?(expanded)
+                if isAtShellPrompt { onCommandSubmitted?(expanded) }
             } else {
                 super.send(source: source, data: data)
-                if !cmd.isEmpty { onCommandSubmitted?(cmd) }
+                if !cmd.isEmpty && isAtShellPrompt { onCommandSubmitted?(cmd) }
             }
         } else {
             super.send(source: source, data: data)
