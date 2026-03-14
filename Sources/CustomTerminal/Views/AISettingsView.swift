@@ -57,17 +57,6 @@ struct AISettingsView: View {
             }
             .disabled(!aiStore.isEnabled)
 
-            GroupBox {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("Shortcuts")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                    ShortcutRowView(key: "⌘⇧G", label: "Generate command from description")
-                    ShortcutRowView(key: "⌥Tab", label: "AI tab completion on current input")
-                }
-                .padding(4)
-            }
-
             HStack {
                 Spacer()
                 Button("Done") { dismiss() }

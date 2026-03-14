@@ -41,14 +41,6 @@ private struct HistoryContent: View {
                     .font(.system(size: 10, weight: .semibold))
                     .foregroundStyle(.secondary)
                 Spacer()
-                if !sessionManager.globalHistory.entries.isEmpty {
-                    Button("Clear") {
-                        sessionManager.globalHistory.clear()
-                    }
-                    .font(.system(size: 10))
-                    .buttonStyle(.plain)
-                    .foregroundStyle(.secondary)
-                }
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
@@ -105,6 +97,9 @@ private struct HistoryContent: View {
             }
         }
         .background(Color(nsColor: .windowBackgroundColor).opacity(0.6))
+        .onReceive(NotificationCenter.default.publisher(for: .clearHistory)) { _ in
+            sessionManager.globalHistory.clear()
+        }
     }
 }
 

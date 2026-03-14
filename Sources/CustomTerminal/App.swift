@@ -82,6 +82,10 @@ struct MosbyApp: App {
                 Button("AI Settings…") {
                     NotificationCenter.default.post(name: .openAISettings, object: nil)
                 }
+                Divider()
+                Button("Clear History") {
+                    NotificationCenter.default.post(name: .clearHistory, object: nil)
+                }
             }
         }
     }
@@ -286,4 +290,5 @@ extension Notification.Name {
     static let openAISettings       = Notification.Name("Mosby.openAISettings")
     static let toggleSearch         = Notification.Name("Mosby.toggleSearch")
     static let terminalInputChanged = Notification.Name("Mosby.terminalInputChanged")
+    static let clearHistory         = Notification.Name("Mosby.clearHistory")
 }
