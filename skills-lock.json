@@ -6,6 +6,11 @@
       "sourceType": "github",
       "computedHash": "dec65531b4bd37d15e6243dbb0d2d1f554b4f4087bcb2e8deb7273f570fa4069"
     },
+    "swift-security-expert": {
+      "source": "ivan-magda/swift-security-skill",
+      "sourceType": "github",
+      "computedHash": "2ed2d08862b10401756c671ffedbe707d883d6a2667a77082b529c36c5afb2f8"
+    },
     "swiftdata-pro": {
       "source": "twostraws/swiftdata-agent-skill",
       "sourceType": "github",
@@ -15,6 +20,11 @@
       "source": "twostraws/swiftui-agent-skill",
       "sourceType": "github",
       "computedHash": "ce653d19fd00a4874489003025e9235be542e7134ff3c543e20afeb53fc3bc9a"
+    },
+    "wax": {
+      "source": "christopherkarani/Wax",
+      "sourceType": "github",
+      "computedHash": "47a59db57d9ca31ad50a8ea356392e3cc55e81ab8a1e96100456daf7ac0fe883"
     }
   }
 }
