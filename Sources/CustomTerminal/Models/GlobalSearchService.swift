@@ -2,6 +2,7 @@ import Foundation
 import Observation
 
 @Observable
+@MainActor
 final class GlobalSearchService {
     var query: String = ""
     var matches: [SearchMatch] = []

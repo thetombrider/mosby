@@ -1,7 +1,4 @@
 - add user profile for history and settings sync among devices
-- move the clear command history to the app menu bar
-- do not store prompts into claude or other cli tools inside the history, we should store only what is sent to zsh not to processes running in the terminal
-- integrate a persistent AI chatbot at the bottom that can be used for anything, need to brainstorm how to do terminal injection if conversation is large --> evolution of the generate command ui which we are going to remove
 - remove shortcuts explanation from ai settings modal
 - reimplement saving keys in keychain instead of user defaults
 - verificare per cosa viene usato swift data e per cosa no

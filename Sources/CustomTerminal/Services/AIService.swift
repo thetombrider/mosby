@@ -35,6 +35,7 @@ enum AIService {
         terminalLines: [String],
         currentDirectory: String,
         directoryContents: [String],
+        recalled: [String] = [],
         apiKey: String,
         model: String
     ) -> AsyncThrowingStream<String, Error> {
@@ -63,6 +64,9 @@ enum AIService {
                     }
                     if !terminalLines.isEmpty {
                         system += "\n\nVisible terminal output:\n\(terminalLines.joined(separator: "\n"))"
+                    }
+                    if !recalled.isEmpty {
+                        system += "\n\nRelevant context from memory:\n\(recalled.prefix(10).joined(separator: "\n"))"
                     }
 
                     var apiMessages: [[String: String]] = [["role": "system", "content": system]]

@@ -67,6 +67,11 @@ final class ChatStore {
         let dirContents: [String] = cwd.isEmpty
             ? []
             : (try? FileManager.default.contentsOfDirectory(atPath: cwd)) ?? []
+        let recalled = await MemoryStore.shared.recall(query: trimmed)
+
+        Task {
+            await MemoryStore.shared.remember(trimmed, metadata: ["type": "chat", "role": "user"])
+        }
 
         do {
             let stream = AIService.chatStream(
@@ -75,6 +80,7 @@ final class ChatStore {
                 terminalLines: terminalLines,
                 currentDirectory: cwd,
                 directoryContents: dirContents,
+                recalled: recalled,
                 apiKey: apiKey,
                 model: model
             )
@@ -84,6 +90,10 @@ final class ChatStore {
             let assistantMsg = ChatMessage(role: "assistant", content: streamingContent, sessionId: session.id, conversation: conv)
             modelContext.insert(assistantMsg)
             try? modelContext.save()
+            let assistantContent = streamingContent
+            Task {
+                await MemoryStore.shared.remember(assistantContent, metadata: ["type": "chat", "role": "assistant"])
+            }
         } catch {
             sendError = error.localizedDescription
         }
