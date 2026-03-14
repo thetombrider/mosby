@@ -6,12 +6,14 @@ import Observation
 final class ChatStore {
 
     private let modelContext: ModelContext
+    private let globalHistory: GlobalHistoryStore
     var isSending = false
     var sendError: String?
     var streamingContent = ""
 
-    init(modelContext: ModelContext) {
+    init(modelContext: ModelContext, globalHistory: GlobalHistoryStore) {
         self.modelContext = modelContext
+        self.globalHistory = globalHistory
     }
 
     // MARK: - Conversation access
@@ -59,7 +61,7 @@ final class ChatStore {
             .sorted { $0.timestamp < $1.timestamp }
             .map { AIService.ChatTurn(role: $0.role, content: $0.content) }
 
-        let recentCommands = Array(session.commandHistory.prefix(20).map(\.command))
+        let recentCommands = Array(globalHistory.entries.prefix(100).map(\.command))
         let terminalLines  = Array(session.extractBufferLines().suffix(100).map(\.text))
         let cwd            = session.currentDirectory ?? ""
         let dirContents: [String] = cwd.isEmpty

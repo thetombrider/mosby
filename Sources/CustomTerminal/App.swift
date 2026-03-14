@@ -20,11 +20,12 @@ struct MosbyApp: App {
         container = c
 
         let aliases = AliasStore()
+        let sm = SessionManager(aliasStore: aliases)
         _aliasStore      = State(initialValue: aliases)
         _keybindingStore = State(initialValue: KeybindingStore())
-        _sessionManager  = State(initialValue: SessionManager(aliasStore: aliases))
+        _sessionManager  = State(initialValue: sm)
         _aiStore         = State(initialValue: AIStore())
-        _chatStore       = State(initialValue: ChatStore(modelContext: c.mainContext))
+        _chatStore       = State(initialValue: ChatStore(modelContext: c.mainContext, globalHistory: sm.globalHistory))
     }
 
     var body: some Scene {

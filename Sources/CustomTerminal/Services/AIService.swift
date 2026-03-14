@@ -59,7 +59,7 @@ enum AIService {
                         }
                     }
                     if !recentCommands.isEmpty {
-                        system += "\n\nRecent commands in this session:\n\(recentCommands.reversed().joined(separator: "\n"))"
+                        system += "\n\nCommand history (most recent last):\n\(recentCommands.reversed().joined(separator: "\n"))"
                     }
                     if !terminalLines.isEmpty {
                         system += "\n\nVisible terminal output:\n\(terminalLines.joined(separator: "\n"))"
