@@ -1,4 +1,4 @@
 - add user profile for history and settings sync among devices
-- remove shortcuts explanation from ai settings modal
 - reimplement saving keys in keychain instead of user defaults
 - verificare per cosa viene usato swift data e per cosa no
+- implementare mcp client per integrazioni con filesystem, github, tavily, puppeteer
