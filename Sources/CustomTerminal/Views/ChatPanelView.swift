@@ -70,6 +70,9 @@ struct ChatPanelView: View {
             inputBar
         }
         .background(Color(white: 0.09))
+        .onReceive(NotificationCenter.default.publisher(for: .focusChatInput)) { _ in
+            inputFocused = true
+        }
     }
 
     // MARK: - Subviews

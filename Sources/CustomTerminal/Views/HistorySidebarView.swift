@@ -25,6 +25,8 @@ private struct HistoryContent: View {
     let session: TerminalSession
     @Environment(SessionManager.self) private var sessionManager
     @State private var searchText = ""
+    @State private var keyboardSelectedIndex: Int?
+    @FocusState private var isFocused: Bool
 
     private var history: [TerminalSession.HistoryEntry] {
         let all = sessionManager.globalHistory.entries
@@ -85,8 +87,11 @@ private struct HistoryContent: View {
             } else {
                 ScrollView(.vertical) {
                     LazyVStack(spacing: 0) {
-                        ForEach(history) { entry in
-                            HistoryEntryRow(entry: entry) {
+                        ForEach(Array(history.enumerated()), id: \.element.id) { index, entry in
+                            HistoryEntryRow(
+                                entry: entry,
+                                isKeyboardSelected: isFocused && keyboardSelectedIndex == index
+                            ) {
                                 session.inject(command: entry.command)
                             }
                         }
@@ -97,6 +102,32 @@ private struct HistoryContent: View {
             }
         }
         .background(Color(nsColor: .windowBackgroundColor).opacity(0.6))
+        .focusable()
+        .focused($isFocused)
+        .onKeyPress(.upArrow) {
+            guard isFocused else { return .ignored }
+            guard !history.isEmpty else { return .ignored }
+            let current = keyboardSelectedIndex ?? 0
+            keyboardSelectedIndex = max(current - 1, 0)
+            return .handled
+        }
+        .onKeyPress(.downArrow) {
+            guard isFocused else { return .ignored }
+            guard !history.isEmpty else { return .ignored }
+            let current = keyboardSelectedIndex ?? -1
+            keyboardSelectedIndex = min(current + 1, history.count - 1)
+            return .handled
+        }
+        .onKeyPress(.return) {
+            guard isFocused, let idx = keyboardSelectedIndex,
+                  idx >= 0, idx < history.count else { return .ignored }
+            session.inject(command: history[idx].command)
+            return .handled
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .focusHistory)) { _ in
+            isFocused = true
+            keyboardSelectedIndex = 0
+        }
         .onReceive(NotificationCenter.default.publisher(for: .clearHistory)) { _ in
             sessionManager.globalHistory.clear()
         }
@@ -108,6 +139,7 @@ private struct HistoryContent: View {
 private struct HistoryEntryRow: View {
 
     let entry: TerminalSession.HistoryEntry
+    var isKeyboardSelected: Bool = false
     let onRun: () -> Void
 
     @State private var hovered = false
@@ -126,7 +158,10 @@ private struct HistoryEntryRow: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, 10)
         .padding(.vertical, 6)
-        .background(hovered ? Color.white.opacity(0.07) : Color.clear)
+        .background(
+            (isKeyboardSelected ? Color.accentColor.opacity(0.2) : Color.clear)
+                .overlay(hovered ? Color.white.opacity(0.07) : Color.clear)
+        )
         .contentShape(Rectangle())
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(entry.command)")

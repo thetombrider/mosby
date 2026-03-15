@@ -6,6 +6,7 @@ struct ContentView: View {
     @Environment(AliasStore.self)      private var aliasStore
     @Environment(KeybindingStore.self) private var keybindingStore
     @Environment(AIStore.self)         private var aiStore
+    @Environment(PaneNavigationStore.self) private var paneNav
     @Environment(ChatStore.self)       private var chatStore
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -28,6 +29,7 @@ struct ContentView: View {
             if showSessions {
                 SessionSidebarView()
                     .frame(minWidth: 140, idealWidth: 200, maxWidth: 320)
+                    .paneHighlight(.sessions, store: paneNav)
             }
 
             VSplitView {
@@ -50,17 +52,20 @@ struct ContentView: View {
                     }
                 }
                 .frame(minWidth: 400, minHeight: 200)
+                .paneHighlight(.terminal, store: paneNav)
 
                 if showChat, let session = sessionManager.activeSession {
                     ChatPanelView(session: session)
                         .id(session.id)
                         .frame(minHeight: 150, idealHeight: 260)
+                        .paneHighlight(.chat, store: paneNav)
                 }
             }
 
             if showHistory {
                 HistorySidebarView()
                     .frame(minWidth: 160, idealWidth: 220, maxWidth: 400)
+                    .paneHighlight(.history, store: paneNav)
             }
         }
         .frame(minWidth: 900, minHeight: 500)
@@ -86,6 +91,20 @@ struct ContentView: View {
         .onReceive(NotificationCenter.default.publisher(for: .newSession))      { _ in sessionManager.addSession() }
         .onReceive(NotificationCenter.default.publisher(for: .openAISettings))  { _ in showingAISettings  = true }
         .onReceive(NotificationCenter.default.publisher(for: .toggleSearch))    { _ in showingSearch.toggle() }
+        // Keep paneNav in sync with visible panes
+        .onChange(of: showSessions) { _, vis in
+            syncVisiblePanes()
+            if !vis && paneNav.focusedPane == .sessions { paneNav.focusedPane = .terminal }
+        }
+        .onChange(of: showHistory) { _, vis in
+            syncVisiblePanes()
+            if !vis && paneNav.focusedPane == .history { paneNav.focusedPane = .terminal }
+        }
+        .onChange(of: showChat) { _, vis in
+            syncVisiblePanes()
+            if !vis && paneNav.focusedPane == .chat { paneNav.focusedPane = .terminal }
+        }
+        .onAppear { syncVisiblePanes() }
         .toolbar {
             ToolbarItem(placement: .navigation) {
                 Button { showSessions.toggle() } label: {
@@ -108,5 +127,42 @@ struct ContentView: View {
                 .help(showHistory ? "Hide History" : "Show History")
             }
         }
+    }
+
+    private func syncVisiblePanes() {
+        var panes: Set<PaneNavigationStore.Pane> = [.terminal]
+        if showSessions { panes.insert(.sessions) }
+        if showHistory  { panes.insert(.history) }
+        if showChat     { panes.insert(.chat) }
+        paneNav.visiblePanes = panes
+    }
+}
+
+// MARK: - Pane highlight modifier
+
+private struct PaneHighlightModifier: ViewModifier {
+    let pane: PaneNavigationStore.Pane
+    let store: PaneNavigationStore
+
+    private var isHighlighted: Bool {
+        store.isNavigating && store.focusedPane == pane
+    }
+
+    func body(content: Content) -> some View {
+        content
+            .overlay {
+                if isHighlighted {
+                    RoundedRectangle(cornerRadius: 4)
+                        .strokeBorder(Color.accentColor, lineWidth: 2)
+                        .allowsHitTesting(false)
+                }
+            }
+            .animation(.easeInOut(duration: 0.15), value: isHighlighted)
+    }
+}
+
+extension View {
+    func paneHighlight(_ pane: PaneNavigationStore.Pane, store: PaneNavigationStore) -> some View {
+        modifier(PaneHighlightModifier(pane: pane, store: store))
     }
 }

@@ -4,6 +4,8 @@ struct SessionSidebarView: View {
 
     @Environment(SessionManager.self) private var sessionManager
     @State private var draggingId: UUID?
+    @State private var keyboardSelectedIndex: Int?
+    @FocusState private var isFocused: Bool
 
     var body: some View {
         VStack(spacing: 0) {
@@ -23,8 +25,12 @@ struct SessionSidebarView: View {
             // Session list
             ScrollView(.vertical) {
                 LazyVStack(spacing: 2) {
-                    ForEach(sessionManager.sessions, id: \.id) { session in
-                        SessionRowView(session: session, isDragging: draggingId == session.id)
+                    ForEach(Array(sessionManager.sessions.enumerated()), id: \.element.id) { index, session in
+                        SessionRowView(
+                            session: session,
+                            isDragging: draggingId == session.id,
+                            isKeyboardSelected: isFocused && keyboardSelectedIndex == index
+                        )
                             .onDrag {
                                 draggingId = session.id
                                 return NSItemProvider(object: session.id.uuidString as NSString)
@@ -61,6 +67,40 @@ struct SessionSidebarView: View {
             .hoverHighlight()
         }
         .background(Color(nsColor: .windowBackgroundColor).opacity(0.6))
+        .focusable()
+        .focused($isFocused)
+        .onKeyPress(.upArrow) {
+            guard isFocused else { return .ignored }
+            let sessions = sessionManager.sessions
+            guard !sessions.isEmpty else { return .ignored }
+            let current = keyboardSelectedIndex ?? 0
+            keyboardSelectedIndex = max(current - 1, 0)
+            return .handled
+        }
+        .onKeyPress(.downArrow) {
+            guard isFocused else { return .ignored }
+            let sessions = sessionManager.sessions
+            guard !sessions.isEmpty else { return .ignored }
+            let current = keyboardSelectedIndex ?? -1
+            keyboardSelectedIndex = min(current + 1, sessions.count - 1)
+            return .handled
+        }
+        .onKeyPress(.return) {
+            guard isFocused, let idx = keyboardSelectedIndex else { return .ignored }
+            let sessions = sessionManager.sessions
+            guard idx >= 0, idx < sessions.count else { return .ignored }
+            sessionManager.activeSessionId = sessions[idx].id
+            return .handled
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .focusSessions)) { _ in
+            isFocused = true
+            // Pre-select the active session
+            if let activeId = sessionManager.activeSessionId {
+                keyboardSelectedIndex = sessionManager.sessions.firstIndex { $0.id == activeId }
+            } else {
+                keyboardSelectedIndex = 0
+            }
+        }
         .onReceive(NotificationCenter.default.publisher(for: .closeSession)) { _ in
             sessionManager.closeActiveSession()
         }
@@ -73,6 +113,7 @@ private struct SessionRowView: View {
 
     let session: TerminalSession
     let isDragging: Bool
+    var isKeyboardSelected: Bool = false
     @Environment(SessionManager.self) private var sessionManager
 
     var isActive: Bool { sessionManager.activeSessionId == session.id }
@@ -106,6 +147,10 @@ private struct SessionRowView: View {
             .background(
                 RoundedRectangle(cornerRadius: 5)
                     .fill(isActive ? Color.accentColor.opacity(0.25) : Color.clear)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 5)
+                    .strokeBorder(Color.accentColor.opacity(isKeyboardSelected ? 0.8 : 0), lineWidth: 1.5)
             )
             .contentShape(Rectangle())
         }

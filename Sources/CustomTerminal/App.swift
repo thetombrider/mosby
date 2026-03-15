@@ -7,6 +7,7 @@ struct MosbyApp: App {
     @State private var keybindingStore = KeybindingStore()
     @State private var sessionManager: SessionManager
     @State private var aiStore         = AIStore()
+    @State private var paneNav         = PaneNavigationStore()
     @State private var chatStore: ChatStore
 
     private let container: ModelContainer
@@ -35,6 +36,7 @@ struct MosbyApp: App {
                 .environment(aliasStore)
                 .environment(keybindingStore)
                 .environment(aiStore)
+                .environment(paneNav)
                 .environment(chatStore)
                 .preferredColorScheme(.dark)
                 .onAppear {
@@ -137,6 +139,45 @@ struct MosbyApp: App {
             // Don't intercept when a sheet is active (covers alias/keybinding manager)
             guard window.sheetParent == nil, window.sheets.isEmpty else { return event }
 
+            // ── Pane navigation mode ────────────────────────────────────────
+            if event.keyCode == 53 { // ESC
+                let fr = window.firstResponder
+                let inTextField = fr is NSTextField || fr is NSText
+
+                if paneNav.isNavigating {
+                    // Second ESC → exit nav mode, refocus terminal
+                    paneNav.exitNavigation()
+                    sessionManager.activeSession?.terminalView.window?
+                        .makeFirstResponder(sessionManager.activeSession?.terminalView)
+                } else if inTextField {
+                    // ESC from a text field → refocus terminal (next ESC enters nav)
+                    sessionManager.activeSession?.terminalView.window?
+                        .makeFirstResponder(sessionManager.activeSession?.terminalView)
+                } else {
+                    // ESC from terminal → enter nav mode
+                    paneNav.enterNavigation(currentPane: .terminal)
+                }
+                return nil
+            }
+
+            if paneNav.isNavigating {
+                switch event.keyCode {
+                case 123: paneNav.move(.left);  return nil  // ←
+                case 124: paneNav.move(.right); return nil  // →
+                case 125: paneNav.move(.down);  return nil  // ↓
+                case 126: paneNav.move(.up);    return nil  // ↑
+                case 36:  // Enter → dive into the focused pane
+                    let target = paneNav.focusedPane
+                    paneNav.exitNavigation()
+                    self.focusPane(target)
+                    return nil
+                default:
+                    // Any other key exits nav mode and falls through
+                    paneNav.exitNavigation()
+                }
+            }
+            // ────────────────────────────────────────────────────────────────
+
             // All configurable keybindings — single dispatch point
             if let action = keybindingStore.action(for: event) {
                 self.dispatch(action: action)
@@ -233,6 +274,21 @@ struct MosbyApp: App {
         }
     }
 
+    /// Focus into the given pane after exiting navigation mode.
+    private func focusPane(_ pane: PaneNavigationStore.Pane) {
+        switch pane {
+        case .terminal:
+            sessionManager.activeSession?.terminalView.window?
+                .makeFirstResponder(sessionManager.activeSession?.terminalView)
+        case .chat:
+            NotificationCenter.default.post(name: .focusChatInput, object: nil)
+        case .sessions:
+            NotificationCenter.default.post(name: .focusSessions, object: nil)
+        case .history:
+            NotificationCenter.default.post(name: .focusHistory, object: nil)
+        }
+    }
+
     /// Returns the most recent history entry that extends `partial`, or nil if none.
     private func findHistorySuggestion(for partial: String, in session: TerminalSession) -> String? {
         session.commandHistory.first {
@@ -301,4 +357,7 @@ extension Notification.Name {
     static let toggleSearch         = Notification.Name("Mosby.toggleSearch")
     static let terminalInputChanged = Notification.Name("Mosby.terminalInputChanged")
     static let clearHistory         = Notification.Name("Mosby.clearHistory")
+    static let focusChatInput       = Notification.Name("Mosby.focusChatInput")
+    static let focusSessions        = Notification.Name("Mosby.focusSessions")
+    static let focusHistory         = Notification.Name("Mosby.focusHistory")
 }
