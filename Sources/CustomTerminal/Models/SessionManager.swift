@@ -60,6 +60,15 @@ final class SessionManager {
         closeSession(active)
     }
 
+    func moveSession(draggedId: UUID, targetId: UUID) {
+        guard draggedId != targetId,
+              let from = sessions.firstIndex(where: { $0.id == draggedId }),
+              let to   = sessions.firstIndex(where: { $0.id == targetId })
+        else { return }
+        sessions.move(fromOffsets: IndexSet(integer: from), toOffset: to > from ? to + 1 : to)
+        persistSessions()
+    }
+
     // MARK: - Persistence
 
     private func restoreSessions() {

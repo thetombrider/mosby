@@ -73,14 +73,29 @@ final class ChatStore {
             await MemoryStore.shared.remember(trimmed, metadata: ["type": "chat", "role": "user"])
         }
 
+        // Fetch system prompt base from Langfuse (falls back to default if unavailable)
+        let langfusePrompt = await LangfuseClient.shared.fetchPrompt(name: "mosby-chat")
+        let promptBase    = langfusePrompt?.text ?? AIService.defaultChatSystemPrompt
+        let promptVersion = langfusePrompt?.version
+
+        let systemPrompt = AIService.buildChatSystemPrompt(
+            base: promptBase,
+            currentDirectory: cwd,
+            directoryContents: dirContents,
+            recentCommands: recentCommands,
+            terminalLines: terminalLines,
+            recalled: recalled
+        )
+
+        // IDs and timing for Langfuse trace
+        let traceId      = UUID().uuidString
+        let generationId = UUID().uuidString
+        let startTime    = Date()
+
         do {
             let stream = AIService.chatStream(
                 messages: history,
-                recentCommands: recentCommands,
-                terminalLines: terminalLines,
-                currentDirectory: cwd,
-                directoryContents: dirContents,
-                recalled: recalled,
+                systemPrompt: systemPrompt,
                 apiKey: apiKey,
                 model: model
             )
@@ -91,8 +106,26 @@ final class ChatStore {
             modelContext.insert(assistantMsg)
             try? modelContext.save()
             let assistantContent = streamingContent
+
+            // Build the exact messages array that was sent to the API (for trace input)
+            var traceMessages: [[String: String]] = [["role": "system", "content": systemPrompt]]
+            for turn in history { traceMessages.append(["role": turn.role, "content": turn.content]) }
+
             Task {
                 await MemoryStore.shared.remember(assistantContent, metadata: ["type": "chat", "role": "assistant"])
+                await LangfuseClient.shared.traceChatTurn(
+                    traceId:       traceId,
+                    generationId:  generationId,
+                    sessionId:     session.id.uuidString,
+                    userInput:     trimmed,
+                    messages:      traceMessages,
+                    output:        assistantContent,
+                    model:         model,
+                    promptName:    "mosby-chat",
+                    promptVersion: promptVersion,
+                    startTime:     startTime,
+                    endTime:       Date()
+                )
             }
         } catch {
             sendError = error.localizedDescription

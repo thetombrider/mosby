@@ -28,14 +28,62 @@ enum AIService {
         let content: String
     }
 
-    /// Multi-turn chat with full session context — streams token deltas.
-    static func chatStream(
-        messages: [ChatTurn],
-        recentCommands: [String],
-        terminalLines: [String],
+    // MARK: - Default system prompts (used as fallback when Langfuse is unavailable)
+
+    static let defaultChatSystemPrompt = """
+    You are a helpful terminal assistant embedded in Mosby, a macOS terminal emulator. \
+    Always reply in the language of the user. \
+    Help the user with shell commands, explain errors, and assist with their work in the current session. \
+    When suggesting a shell command, wrap it in a fenced code block:
+    ```sh
+    command-here
+    ```
+    """
+
+    static let defaultCompletionSystemPrompt = """
+    You are a shell autocomplete engine. \
+    Given a partial shell command, output the COMPLETE command (starting from the beginning). \
+    Output ONLY the completed command — no explanation, no markdown, no backticks. \
+    One line only. Keep it the most common/practical interpretation.
+    """
+
+    // MARK: - System prompt builder
+
+    /// Assembles the full chat system prompt from a base template and runtime context.
+    static func buildChatSystemPrompt(
+        base: String,
         currentDirectory: String,
         directoryContents: [String],
-        recalled: [String] = [],
+        recentCommands: [String],
+        terminalLines: [String],
+        recalled: [String]
+    ) -> String {
+        var system = base
+        if !currentDirectory.isEmpty {
+            system += "\n\nCurrent working directory: \(currentDirectory)"
+            if !directoryContents.isEmpty {
+                system += "\nDirectory contents: \(directoryContents.sorted().joined(separator: "  "))"
+            }
+        }
+        if !recentCommands.isEmpty {
+            system += "\n\nCommand history (most recent last):\n\(recentCommands.reversed().joined(separator: "\n"))"
+        }
+        if !terminalLines.isEmpty {
+            system += "\n\nVisible terminal output:\n\(terminalLines.joined(separator: "\n"))"
+        }
+        if !recalled.isEmpty {
+            system += "\n\nRelevant context from memory:\n\(recalled.prefix(10).joined(separator: "\n"))"
+        }
+        return system
+    }
+
+    // MARK: - Chat stream
+
+    /// Multi-turn chat — streams token deltas.
+    /// `systemPrompt` is the fully assembled system prompt (use `buildChatSystemPrompt` to construct it).
+    static func chatStream(
+        messages: [ChatTurn],
+        systemPrompt: String,
         apiKey: String,
         model: String
     ) -> AsyncThrowingStream<String, Error> {
@@ -44,32 +92,7 @@ enum AIService {
                 do {
                     guard !apiKey.isEmpty else { throw AIServiceError.noAPIKey }
 
-                    var system = """
-                    You are a helpful terminal assistant embedded in Mosby, a macOS terminal emulator. \
-                    Always reply in the language of the user. \
-                    Help the user with shell commands, explain errors, and assist with their work in the current session. \
-                    When suggesting a shell command, wrap it in a fenced code block:
-                    ```sh
-                    command-here
-                    ```
-                    """
-                    if !currentDirectory.isEmpty {
-                        system += "\n\nCurrent working directory: \(currentDirectory)"
-                        if !directoryContents.isEmpty {
-                            system += "\nDirectory contents: \(directoryContents.sorted().joined(separator: "  "))"
-                        }
-                    }
-                    if !recentCommands.isEmpty {
-                        system += "\n\nCommand history (most recent last):\n\(recentCommands.reversed().joined(separator: "\n"))"
-                    }
-                    if !terminalLines.isEmpty {
-                        system += "\n\nVisible terminal output:\n\(terminalLines.joined(separator: "\n"))"
-                    }
-                    if !recalled.isEmpty {
-                        system += "\n\nRelevant context from memory:\n\(recalled.prefix(10).joined(separator: "\n"))"
-                    }
-
-                    var apiMessages: [[String: String]] = [["role": "system", "content": system]]
+                    var apiMessages: [[String: String]] = [["role": "system", "content": systemPrompt]]
                     for turn in messages { apiMessages.append(["role": turn.role, "content": turn.content]) }
 
                     var req = URLRequest(url: endpoint)
@@ -98,11 +121,11 @@ enum AIService {
                         let payload = line.dropFirst(6)
                         if payload == "[DONE]" { break }
                         guard
-                            let data = payload.data(using: .utf8),
-                            let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                            let data    = payload.data(using: .utf8),
+                            let obj     = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
                             let choices = obj["choices"] as? [[String: Any]],
-                            let delta = choices.first?["delta"] as? [String: Any],
-                            let token = delta["content"] as? String
+                            let delta   = choices.first?["delta"] as? [String: Any],
+                            let token   = delta["content"] as? String
                         else { continue }
                         continuation.yield(token)
                     }
@@ -114,29 +137,28 @@ enum AIService {
         }
     }
 
+    // MARK: - Command completion
+
     /// Suggest a completion for a partial command already typed at the prompt.
+    /// `systemPromptOverride` replaces the default autocomplete system prompt when provided.
     static func completeCommand(
         partial: String,
         history: [String],
         apiKey: String,
-        model: String
+        model: String,
+        systemPromptOverride: String? = nil
     ) async throws -> String {
         guard !apiKey.isEmpty else { throw AIServiceError.noAPIKey }
         let trimmed = partial.trimmingCharacters(in: .whitespaces)
         guard !trimmed.isEmpty else { throw AIServiceError.emptyInput }
 
-        let system = """
-        You are a shell autocomplete engine. \
-        Given a partial shell command, output the COMPLETE command (starting from the beginning). \
-        Output ONLY the completed command — no explanation, no markdown, no backticks. \
-        One line only. Keep it the most common/practical interpretation.
-        """
+        let system = systemPromptOverride ?? defaultCompletionSystemPrompt
 
         var messages: [[String: String]] = [["role": "system", "content": system]]
 
         let recentHistory = history.prefix(8).reversed().joined(separator: "\n")
         if !recentHistory.isEmpty {
-            messages.append(["role": "user", "content": "Recent commands:\n\(recentHistory)"])
+            messages.append(["role": "user",      "content": "Recent commands:\n\(recentHistory)"])
             messages.append(["role": "assistant", "content": "Noted."])
         }
 
@@ -159,13 +181,10 @@ enum AIService {
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
         req.setValue("Mosby", forHTTPHeaderField: "X-Title")
 
-        let body: [String: Any] = [
-            "model": model,
-            "messages": messages,
-            "max_tokens": maxTokens,
-            "temperature": 0.1,
-        ]
-        req.httpBody = try JSONSerialization.data(withJSONObject: body)
+        req.httpBody = try JSONSerialization.data(withJSONObject: [
+            "model": model, "messages": messages,
+            "max_tokens": maxTokens, "temperature": 0.1,
+        ] as [String: Any])
 
         let (data, response) = try await URLSession.shared.data(for: req)
 
@@ -175,9 +194,9 @@ enum AIService {
         }
 
         guard
-            let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+            let json    = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
             let choices = json["choices"] as? [[String: Any]],
-            let first = choices.first,
+            let first   = choices.first,
             let message = first["message"] as? [String: Any],
             let content = message["content"] as? String
         else { throw AIServiceError.decodingError }

@@ -254,12 +254,18 @@ struct MosbyApp: App {
 
         aiStore.completionTask = Task { @MainActor in
             do {
+                // Fetch completion system prompt from Langfuse (with fallback)
+                let langfusePrompt = await LangfuseClient.shared.fetchPrompt(name: "mosby-completion")
+                let systemPrompt   = langfusePrompt?.text ?? AIService.defaultCompletionSystemPrompt
+
                 let suggestion = try await AIService.completeCommand(
                     partial: partial,
                     history: Array(history),
                     apiKey: aiStore.apiKey,
-                    model: aiStore.model
+                    model: aiStore.model,
+                    systemPromptOverride: systemPrompt
                 )
+
                 aiStore.isLoadingCompletion = false
 
                 // Only show if suggestion extends what the user currently has typed
