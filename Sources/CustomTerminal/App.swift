@@ -364,6 +364,7 @@ extension Notification.Name {
     static let openKeybindings      = Notification.Name("Mosby.openKeybindings")
     static let openAISettings       = Notification.Name("Mosby.openAISettings")
     static let toggleSearch         = Notification.Name("Mosby.toggleSearch")
+    static let toggleCommandPalette = Notification.Name("Mosby.toggleCommandPalette")
     static let terminalInputChanged = Notification.Name("Mosby.terminalInputChanged")
     static let clearHistory         = Notification.Name("Mosby.clearHistory")
     static let focusChatInput       = Notification.Name("Mosby.focusChatInput")

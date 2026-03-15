@@ -11,10 +11,11 @@ struct ContentView: View {
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    @State private var showSessions       = true
-    @State private var showHistory        = true
-    @State private var showChat           = true
-    @State private var showingSearch      = false
+    @State private var showSessions          = true
+    @State private var showHistory           = true
+    @State private var showChat              = true
+    @State private var showingSearch         = false
+    @State private var showingCommandPalette = false
 
     @State private var showingAliases     = false
     @State private var showingKeybindings = false
@@ -70,6 +71,16 @@ struct ContentView: View {
         }
         .frame(minWidth: 900, minHeight: 500)
         .background(Color.black)
+        .overlay {
+            if showingCommandPalette {
+                CommandPaletteView(isPresented: $showingCommandPalette)
+                    .environment(sessionManager)
+                    .environment(aliasStore)
+                    .transition(.opacity.combined(with: .scale(scale: 0.97, anchor: .center)))
+                    .animation(.easeInOut(duration: 0.15), value: showingCommandPalette)
+                    .zIndex(20)
+            }
+        }
         .sheet(isPresented: $showingAliases) {
             AliasManagerView()
                 .environment(aliasStore)
@@ -90,7 +101,8 @@ struct ContentView: View {
         .onReceive(NotificationCenter.default.publisher(for: .toggleChat))      { _ in showChat.toggle()     }
         .onReceive(NotificationCenter.default.publisher(for: .newSession))      { _ in sessionManager.addSession() }
         .onReceive(NotificationCenter.default.publisher(for: .openAISettings))  { _ in showingAISettings  = true }
-        .onReceive(NotificationCenter.default.publisher(for: .toggleSearch))    { _ in showingSearch.toggle() }
+        .onReceive(NotificationCenter.default.publisher(for: .toggleSearch))          { _ in showingSearch.toggle() }
+        .onReceive(NotificationCenter.default.publisher(for: .toggleCommandPalette)) { _ in showingCommandPalette.toggle() }
         // Keep paneNav in sync with visible panes
         .onChange(of: showSessions) { _, vis in
             syncVisiblePanes()
