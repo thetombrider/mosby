@@ -69,6 +69,7 @@ struct SessionSidebarView: View {
         .background(Color(nsColor: .windowBackgroundColor).opacity(0.6))
         .focusable()
         .focused($isFocused)
+        .focusEffectDisabled()
         .onKeyPress(.upArrow) {
             guard isFocused else { return .ignored }
             let sessions = sessionManager.sessions

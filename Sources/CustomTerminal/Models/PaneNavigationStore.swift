@@ -14,6 +14,9 @@ final class PaneNavigationStore {
     /// The pane currently highlighted while navigating.
     var focusedPane: Pane = .terminal
 
+    /// The pane the user is currently working in (after pressing Enter to dive in).
+    var activePane: Pane = .terminal
+
     /// Which panes are currently visible (updated by ContentView).
     var visiblePanes: Set<Pane> = [.sessions, .terminal, .chat, .history]
 

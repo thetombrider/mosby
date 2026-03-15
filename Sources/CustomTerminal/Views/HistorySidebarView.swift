@@ -104,6 +104,7 @@ private struct HistoryContent: View {
         .background(Color(nsColor: .windowBackgroundColor).opacity(0.6))
         .focusable()
         .focused($isFocused)
+        .focusEffectDisabled()
         .onKeyPress(.upArrow) {
             guard isFocused else { return .ignored }
             guard !history.isEmpty else { return .ignored }

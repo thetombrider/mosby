@@ -147,10 +147,15 @@ struct MosbyApp: App {
                 if paneNav.isNavigating {
                     // Second ESC → exit nav mode, refocus terminal
                     paneNav.exitNavigation()
+                    paneNav.activePane = .terminal
                     sessionManager.activeSession?.terminalView.window?
                         .makeFirstResponder(sessionManager.activeSession?.terminalView)
+                } else if paneNav.activePane != .terminal {
+                    // ESC from a sidebar → enter nav mode highlighting that pane
+                    paneNav.enterNavigation(currentPane: paneNav.activePane)
+                    paneNav.activePane = .terminal
                 } else if inTextField {
-                    // ESC from a text field → refocus terminal (next ESC enters nav)
+                    // ESC from a text field → refocus terminal
                     sessionManager.activeSession?.terminalView.window?
                         .makeFirstResponder(sessionManager.activeSession?.terminalView)
                 } else {
@@ -219,6 +224,9 @@ struct MosbyApp: App {
             let fr = window.firstResponder
             if fr is NSTextField || fr is NSText { return event }
 
+            // Let SwiftUI handle events when a sidebar or chat pane is active
+            if paneNav.activePane != .terminal { return event }
+
             // ── Right Arrow: accept inline ghost suggestion ───────────────────
             if event.keyCode == 124,  // Right Arrow
                let suggestion = aiStore.pendingSuggestion,
@@ -276,6 +284,7 @@ struct MosbyApp: App {
 
     /// Focus into the given pane after exiting navigation mode.
     private func focusPane(_ pane: PaneNavigationStore.Pane) {
+        paneNav.activePane = pane
         switch pane {
         case .terminal:
             sessionManager.activeSession?.terminalView.window?
