@@ -10,6 +10,9 @@ struct CommandPaletteView: View {
     @Environment(AliasStore.self)      private var aliasStore
 
     @State private var service = CommandPaletteService()
+    @State private var scrollDirection: ScrollDirection = .none
+
+    private enum ScrollDirection { case none, up, down }
 
     var body: some View {
         ZStack {
@@ -56,8 +59,8 @@ struct CommandPaletteView: View {
             PaletteSearchField(
                 text: $service.query,
                 placeholder: searchPlaceholder,
-                onUpArrow:   { service.moveSelection(by: -1) },
-                onDownArrow: { service.moveSelection(by: +1) },
+                onUpArrow:   { scrollDirection = .up;   service.moveSelection(by: -1) },
+                onDownArrow: { scrollDirection = .down; service.moveSelection(by: +1) },
                 onSubmit:    { executeSelected() },
                 onEscape:    { dismiss() }
             )
@@ -85,46 +88,41 @@ struct CommandPaletteView: View {
         } else {
             ScrollViewReader { proxy in
                 ScrollView {
-                    LazyVStack(alignment: .leading, spacing: 0) {
+                    VStack(alignment: .leading, spacing: 0) {
                         ForEach(groupedResults, id: \.category) { group in
-                            categorySection(group: group)
+                            Text(group.category.uppercased())
+                                .font(.system(size: 10, weight: .semibold))
+                                .foregroundStyle(.tertiary)
+                                .padding(.horizontal, 16)
+                                .padding(.top, 10)
+                                .padding(.bottom, 3)
+
+                            ForEach(group.results.enumerated(), id: \.element.id) { offset, result in
+                                let globalIdx = group.startIndex + offset
+                                ResultRow(
+                                    result: result,
+                                    isSelected: globalIdx == service.selectedIndex,
+                                    query: effectiveTerm
+                                )
+                                .id(result.id)
+                                .onTapGesture { execute(result) }
+                                .onHover { hovering in
+                                    if hovering { service.selectedIndex = globalIdx }
+                                }
+                            }
                         }
                     }
                     .padding(.vertical, 6)
                 }
                 .onChange(of: service.selectedIndex) { _, idx in
-                    if let result = service.results[safe: idx] {
-                        withAnimation(.easeInOut(duration: 0.1)) {
-                            proxy.scrollTo(result.id, anchor: .center)
-                        }
-                    }
+                    guard scrollDirection != .none else { return }
+                    let dir = scrollDirection
+                    scrollDirection = .none
+                    guard let result = service.results[safe: idx] else { return }
+                    let anchor: UnitPoint = (dir == .down) ? .bottom : .top
+                    proxy.scrollTo(result.id, anchor: anchor)
                 }
             }
-        }
-    }
-
-    private func categorySection(group: ResultGroup) -> some View {
-        Section {
-            ForEach(Array(group.results.enumerated()), id: \.element.id) { offset, result in
-                let globalIdx = group.startIndex + offset
-                ResultRow(
-                    result: result,
-                    isSelected: globalIdx == service.selectedIndex,
-                    query: effectiveTerm
-                )
-                .id(result.id)
-                .onTapGesture { execute(result) }
-                .onHover { hovering in
-                    if hovering { service.selectedIndex = globalIdx }
-                }
-            }
-        } header: {
-            Text(group.category.uppercased())
-                .font(.system(size: 10, weight: .semibold))
-                .foregroundStyle(.tertiary)
-                .padding(.horizontal, 16)
-                .padding(.top, 10)
-                .padding(.bottom, 3)
         }
     }
 
@@ -409,6 +407,25 @@ private struct PaletteSearchField: NSViewRepresentable {
         func controlTextDidChange(_ obj: Notification) {
             guard let tf = obj.object as? NSTextField else { return }
             parent.text = tf.stringValue
+        }
+
+        func control(_ control: NSControl, textView: NSTextView, doCommandBy commandSelector: Selector) -> Bool {
+            switch commandSelector {
+            case #selector(NSResponder.moveUp(_:)):
+                parent.onUpArrow()
+                return true
+            case #selector(NSResponder.moveDown(_:)):
+                parent.onDownArrow()
+                return true
+            case #selector(NSResponder.insertNewline(_:)):
+                parent.onSubmit()
+                return true
+            case #selector(NSResponder.cancelOperation(_:)):
+                parent.onEscape()
+                return true
+            default:
+                return false
+            }
         }
     }
 

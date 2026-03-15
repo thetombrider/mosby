@@ -3,3 +3,4 @@
 - verificare per cosa viene usato swift data e per cosa no
 - implementare mcp client per integrazioni con filesystem, github, tavily, puppeteer
 - dare al chatbot ai il suo terminal
+- togliere il search semplice tenere solo global command palette, aggiungere ricerca nelle chatbot
