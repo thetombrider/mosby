@@ -3,6 +3,7 @@ import SwiftUI
 struct SessionSidebarView: View {
 
     @Environment(SessionManager.self) private var sessionManager
+    @State private var draggingId: UUID?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -23,7 +24,19 @@ struct SessionSidebarView: View {
             ScrollView(.vertical) {
                 LazyVStack(spacing: 2) {
                     ForEach(sessionManager.sessions, id: \.id) { session in
-                        SessionRowView(session: session)
+                        SessionRowView(session: session, isDragging: draggingId == session.id)
+                            .onDrag {
+                                draggingId = session.id
+                                return NSItemProvider(object: session.id.uuidString as NSString)
+                            }
+                            .onDrop(
+                                of: [.plainText],
+                                delegate: SessionDropDelegate(
+                                    targetId: session.id,
+                                    draggingId: $draggingId,
+                                    onMove: sessionManager.moveSession
+                                )
+                            )
                     }
                 }
                 .padding(.vertical, 6)
@@ -59,6 +72,7 @@ struct SessionSidebarView: View {
 private struct SessionRowView: View {
 
     let session: TerminalSession
+    let isDragging: Bool
     @Environment(SessionManager.self) private var sessionManager
 
     var isActive: Bool { sessionManager.activeSessionId == session.id }
@@ -66,10 +80,7 @@ private struct SessionRowView: View {
     var body: some View {
         Button(action: { sessionManager.activeSessionId = session.id }) {
             HStack(spacing: 6) {
-                // Status dot
-                Circle()
-                    .fill(session.isAlive ? Color.green : Color.gray)
-                    .frame(width: 6, height: 6)
+                SessionStatusDot(session: session)
 
                 Text(session.name)
                     .font(.system(size: 12))
@@ -99,8 +110,90 @@ private struct SessionRowView: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .opacity(isDragging ? 0.4 : 1)
         .accessibilityLabel(session.name)
         .accessibilityAddTraits(isActive ? [.isSelected] : [])
+    }
+}
+
+// MARK: - Status Dot
+
+private struct SessionStatusDot: View {
+
+    let session: TerminalSession
+
+    @State private var pulse = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    private var color: Color {
+        switch session.processStatus {
+        case .idle:           return Color.primary.opacity(0.2)
+        case .running:        return .green
+        case .needsAttention: return .orange
+        case .dead:           return Color.primary.opacity(0.1)
+        }
+    }
+
+    private var accessibilityLabel: String {
+        switch session.processStatus {
+        case .idle:           return "idle"
+        case .running:        return "running"
+        case .needsAttention: return "needs attention"
+        case .dead:           return "terminated"
+        }
+    }
+
+    var body: some View {
+        ZStack {
+            // Outer ring for needsAttention
+            if session.processStatus == .needsAttention {
+                Circle()
+                    .strokeBorder(Color.orange.opacity(0.4), lineWidth: 1.5)
+                    .frame(width: 10, height: 10)
+            }
+
+            Circle()
+                .fill(color)
+                .frame(width: 6, height: 6)
+                .scaleEffect(pulse ? 1.35 : 1.0)
+                .animation(
+                    session.processStatus == .running && !reduceMotion
+                        ? .easeInOut(duration: 0.8).repeatForever(autoreverses: true)
+                        : .default,
+                    value: pulse
+                )
+        }
+        .frame(width: 10, height: 10)
+        .onAppear { pulse = session.processStatus == .running }
+        .onChange(of: session.processStatus) { _, newStatus in
+            pulse = newStatus == .running
+        }
+        .accessibilityLabel(Text(accessibilityLabel))
+        .accessibilityHidden(false)
+        .help(accessibilityLabel.capitalized)
+    }
+}
+
+// MARK: - Drop Delegate
+
+private struct SessionDropDelegate: DropDelegate {
+    let targetId: UUID
+    @Binding var draggingId: UUID?
+    let onMove: (UUID, UUID) -> Void
+
+    func performDrop(info: DropInfo) -> Bool {
+        guard let draggedId = draggingId, draggedId != targetId else { return false }
+        onMove(draggedId, targetId)
+        draggingId = nil
+        return true
+    }
+
+    func dropUpdated(info: DropInfo) -> DropProposal? {
+        DropProposal(operation: .move)
+    }
+
+    func validateDrop(info: DropInfo) -> Bool {
+        draggingId != targetId
     }
 }
 

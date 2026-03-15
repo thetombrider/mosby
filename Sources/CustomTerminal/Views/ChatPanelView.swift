@@ -24,9 +24,7 @@ struct ChatPanelView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            if session.currentDirectory == nil {
-                cwdBanner
-            }
+            chatHeader
 
             Divider()
 
@@ -71,32 +69,24 @@ struct ChatPanelView: View {
 
             inputBar
         }
-        .background(Color.black.opacity(0.4))
+        .background(Color(white: 0.09))
     }
 
     // MARK: - Subviews
 
-    private var cwdBanner: some View {
-        HStack(alignment: .top, spacing: 8) {
-            Image(systemName: "folder.badge.questionmark")
-                .foregroundStyle(.yellow)
-            VStack(alignment: .leading, spacing: 2) {
-                Text("Directory tracking unavailable")
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(.yellow)
-                Text("Add to ~/.zshrc for richer AI context:")
-                    .font(.system(size: 10))
-                    .foregroundStyle(.secondary)
-                Text("function precmd { printf '\\e]7;file://%s%s\\a' \"$HOST\" \"$PWD\" }")
-                    .font(.system(size: 10, design: .monospaced))
-                    .textSelection(.enabled)
-                    .foregroundStyle(.white.opacity(0.7))
-            }
+    private var chatHeader: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "bubble.left.and.text.bubble.right")
+                .font(.system(size: 11))
+                .foregroundStyle(.secondary)
+            Text("AI Chat")
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(.secondary)
             Spacer()
         }
         .padding(.horizontal, 10)
-        .padding(.vertical, 7)
-        .background(Color.yellow.opacity(0.08))
+        .padding(.vertical, 6)
+        .background(Color(white: 0.13))
     }
 
     private var streamingBubble: some View {
@@ -115,20 +105,7 @@ struct ChatPanelView: View {
     }
 
     private var typingIndicator: some View {
-        HStack(spacing: 4) {
-            ForEach(0..<3, id: \.self) { i in
-                Circle()
-                    .frame(width: 5, height: 5)
-                    .foregroundStyle(.secondary)
-                    .opacity(chatStore.isSending ? 1 : 0)
-                    .animation(
-                        .easeInOut(duration: 0.5).repeatForever().delay(Double(i) * 0.15),
-                        value: chatStore.isSending
-                    )
-            }
-        }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 4)
+        TypingIndicatorView()
     }
 
     private var inputBar: some View {
@@ -167,5 +144,30 @@ struct ChatPanelView: View {
         Task {
             await chatStore.send(userText: text, session: session, apiKey: aiStore.apiKey, model: aiStore.model)
         }
+    }
+}
+
+// MARK: - Typing indicator
+
+private struct TypingIndicatorView: View {
+    @State private var animating = false
+
+    var body: some View {
+        HStack(spacing: 4) {
+            ForEach(0..<3, id: \.self) { i in
+                Circle()
+                    .frame(width: 5, height: 5)
+                    .foregroundStyle(.secondary)
+                    .opacity(animating ? 1 : 0.15)
+                    .animation(
+                        .easeInOut(duration: 0.5).repeatForever(autoreverses: true).delay(Double(i) * 0.15),
+                        value: animating
+                    )
+            }
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 4)
+        .onAppear { animating = true }
+        .onDisappear { animating = false }
     }
 }

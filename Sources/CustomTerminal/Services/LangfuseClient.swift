@@ -34,7 +34,7 @@ actor LangfuseClient {
         guard isConfigured else { return nil }
         guard let url = URL(string: "\(baseURL)/api/public/v2/prompts/\(name)?label=production") else { return nil }
 
-        var req = URLRequest(url: url)
+        var req = URLRequest(url: url, timeoutInterval: 5)
         req.setValue(authHeader, forHTTPHeaderField: "Authorization")
 
         do {

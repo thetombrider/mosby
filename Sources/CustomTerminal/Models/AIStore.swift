@@ -33,6 +33,10 @@ final class AIStore {
 
     static let availableModels: [(id: String, name: String)] = [
         ("google/gemini-2.5-flash-lite", "Gemini 2.5 Flash Lite"),
+        ("inception/mercury-2", "Mercury 2"),
+        ("arcee-ai/trinity-large-preview:free", "Trinity Large Preview"),
+        ("minimax/minimax-m2.5:free", "MiniMax M2.5"),
+        ("qwen/qwen3.5-9b", "Qwen 3.5 9B"),
     ]
 
     // MARK: - Init

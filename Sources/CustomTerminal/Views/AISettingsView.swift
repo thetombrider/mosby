@@ -57,6 +57,28 @@ struct AISettingsView: View {
             }
             .disabled(!aiStore.isEnabled)
 
+            GroupBox {
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack(spacing: 6) {
+                        Image(systemName: "folder.badge.questionmark")
+                            .foregroundStyle(.yellow)
+                        Text("Shell Integration")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                    }
+                    Text("Add this to **~/.zshrc** so the AI can see which directory you're in:")
+                        .font(.caption)
+                    Text("function precmd { printf '\\e]7;file://%s%s\\a' \"$HOST\" \"$PWD\" }")
+                        .font(.system(.caption, design: .monospaced))
+                        .textSelection(.enabled)
+                        .padding(6)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(Color.black.opacity(0.3))
+                        .clipShape(RoundedRectangle(cornerRadius: 5))
+                }
+                .padding(4)
+            }
+
             HStack {
                 Spacer()
                 Button("Done") { dismiss() }

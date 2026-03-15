@@ -7,6 +7,12 @@ import SwiftTerm
 /// Subclass of LocalProcessTerminalView that intercepts user input to track commands.
 final class TrackedLocalProcessTerminalView: LocalProcessTerminalView {
 
+    /// True when a subprocess (e.g. claude, vim) is in the foreground, not the shell itself.
+    var isSubprocessRunning: Bool {
+        guard let proc = process else { return false }
+        return tcgetpgrp(proc.childfd) != getpgid(proc.shellPid)
+    }
+
     /// Called whenever the user submits a command (text before Enter).
     var onCommandSubmitted: ((String) -> Void)?
 
@@ -216,6 +222,41 @@ final class TrackedLocalProcessTerminalView: LocalProcessTerminalView {
 /// Wraps a TrackedLocalProcessTerminalView with session metadata and command history.
 @Observable
 final class TerminalSession: NSObject {
+
+    // MARK: - Process status
+
+    enum ProcessStatus {
+        /// Shell prompt is active, no subprocess running.
+        case idle
+        /// A subprocess (e.g. claude, make, vim) is in the foreground.
+        case running
+        /// Subprocess finished while this session was not the active one.
+        case needsAttention
+        /// The shell process itself has terminated.
+        case dead
+    }
+
+    var processStatus: ProcessStatus = .idle
+    private var wasRunning = false
+
+    /// Snapshot the subprocess state. Call periodically from outside (e.g. a timer in SessionManager).
+    /// `isActive` should be true only for the session the user is currently viewing.
+    func refreshProcessStatus(isActive: Bool) {
+        guard isAlive else { processStatus = .dead; return }
+        let running = terminalView.isSubprocessRunning
+        defer { wasRunning = running }
+
+        if running {
+            processStatus = .running
+        } else if wasRunning && !isActive {
+            // Just finished while the user wasn't watching → flag it.
+            processStatus = .needsAttention
+        } else if isActive {
+            // User switched to this session — always clear the badge.
+            processStatus = running ? .running : .idle
+        }
+        // Otherwise keep current status (idle stays idle, needsAttention persists until active).
+    }
 
     let id: UUID
     var name: String

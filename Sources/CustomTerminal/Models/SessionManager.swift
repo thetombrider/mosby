@@ -5,7 +5,17 @@ import Observation
 final class SessionManager {
 
     var sessions: [TerminalSession] = []
-    var activeSessionId: UUID?
+
+    var activeSessionId: UUID? {
+        didSet {
+            // Immediately clear the attention badge on the newly-focused session.
+            if let id = activeSessionId {
+                sessions.first { $0.id == id }?.refreshProcessStatus(isActive: true)
+            }
+        }
+    }
+
+    private var statusTimer: Timer?
 
     var aliasStore: AliasStore?
     /// Called with the closed session's ID after it has been removed.
@@ -27,6 +37,16 @@ final class SessionManager {
         self.aliasStore = aliasStore
         restoreSessions()
         if sessions.isEmpty { addSession() }
+        startStatusPolling()
+    }
+
+    private func startStatusPolling() {
+        statusTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
+            guard let self else { return }
+            for session in self.sessions {
+                session.refreshProcessStatus(isActive: session.id == self.activeSessionId)
+            }
+        }
     }
 
     func addSession() {

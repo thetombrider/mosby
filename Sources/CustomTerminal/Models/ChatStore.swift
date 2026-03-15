@@ -55,6 +55,10 @@ final class ChatStore {
         isSending = true
         sendError = nil
         streamingContent = ""
+        defer {
+            streamingContent = ""
+            isSending = false
+        }
 
         // Extract all data from model instances before the async boundary
         let history = conv.messages
@@ -130,8 +134,5 @@ final class ChatStore {
         } catch {
             sendError = error.localizedDescription
         }
-
-        streamingContent = ""
-        isSending = false
     }
 }
