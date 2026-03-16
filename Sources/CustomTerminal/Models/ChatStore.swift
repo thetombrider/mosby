@@ -71,12 +71,6 @@ final class ChatStore {
         let dirContents: [String] = cwd.isEmpty
             ? []
             : (try? FileManager.default.contentsOfDirectory(atPath: cwd)) ?? []
-        let recalled = await MemoryStore.shared.recall(query: trimmed)
-
-        Task {
-            await MemoryStore.shared.remember(trimmed, metadata: ["type": "chat", "role": "user"])
-        }
-
         // Fetch system prompt base from Langfuse (falls back to default if unavailable)
         let langfusePrompt = await LangfuseClient.shared.fetchPrompt(name: "mosby-chat")
         let promptBase    = langfusePrompt?.text ?? AIService.defaultChatSystemPrompt
@@ -87,8 +81,7 @@ final class ChatStore {
             currentDirectory: cwd,
             directoryContents: dirContents,
             recentCommands: recentCommands,
-            terminalLines: terminalLines,
-            recalled: recalled
+            terminalLines: terminalLines
         )
 
         // IDs and timing for Langfuse trace
@@ -116,7 +109,6 @@ final class ChatStore {
             for turn in history { traceMessages.append(["role": turn.role, "content": turn.content]) }
 
             Task {
-                await MemoryStore.shared.remember(assistantContent, metadata: ["type": "chat", "role": "assistant"])
                 await LangfuseClient.shared.traceChatTurn(
                     traceId:       traceId,
                     generationId:  generationId,

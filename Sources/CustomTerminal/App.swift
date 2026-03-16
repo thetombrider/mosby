@@ -47,10 +47,8 @@ struct MosbyApp: App {
                         chatStore.deleteConversation(for: id)
                     }
                     installKeyboardForwarder()
-                    Task { await MemoryStore.shared.open() }
                 }
                 .onReceive(NotificationCenter.default.publisher(for: NSApplication.willTerminateNotification)) { _ in
-                    Task { await MemoryStore.shared.close() }
                 }
         }
         .modelContainer(container)

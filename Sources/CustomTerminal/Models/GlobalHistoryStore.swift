@@ -17,9 +17,6 @@ final class GlobalHistoryStore {
         entries.removeAll { $0.command == entry.command }
         entries.insert(entry, at: 0)
         save()
-        Task {
-            await MemoryStore.shared.remember(entry.command, metadata: ["type": "command"])
-        }
     }
 
     func clear() {

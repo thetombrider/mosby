@@ -55,8 +55,7 @@ enum AIService {
         currentDirectory: String,
         directoryContents: [String],
         recentCommands: [String],
-        terminalLines: [String],
-        recalled: [String]
+        terminalLines: [String]
     ) -> String {
         var system = base
         if !currentDirectory.isEmpty {
@@ -70,9 +69,6 @@ enum AIService {
         }
         if !terminalLines.isEmpty {
             system += "\n\nVisible terminal output:\n\(terminalLines.joined(separator: "\n"))"
-        }
-        if !recalled.isEmpty {
-            system += "\n\nRelevant context from memory:\n\(recalled.prefix(10).joined(separator: "\n"))"
         }
         return system
     }
