@@ -123,3 +123,4 @@ jobs:
           files: ${{ env.DMG_NAME }}
           draft: false
           prerelease: false
+          token: ${{ secrets.THETOMBRIDER_PAT }}
