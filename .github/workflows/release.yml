@@ -1,0 +1,125 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  release:
+    runs-on: macos-15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Extract version from tag
+        id: version
+        run: echo "VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Build DMG
+        run: |
+          VERSION="${{ steps.version.outputs.VERSION }}" bash -c '
+            set -e
+            APP_NAME="Mosby"
+            BUNDLE_ID="com.tommasominuto.mosby"
+            MIN_MACOS="14.0"
+            BINARY_NAME="Mosby"
+            APP_BUNDLE="${APP_NAME}.app"
+            DMG_NAME="${APP_NAME}-${VERSION}.dmg"
+
+            echo "==> Building release binary..."
+            swift build -c release
+
+            echo "==> Assembling .app bundle..."
+            mkdir -p "${APP_BUNDLE}/Contents/MacOS"
+            mkdir -p "${APP_BUNDLE}/Contents/Resources"
+            cp ".build/release/${BINARY_NAME}" "${APP_BUNDLE}/Contents/MacOS/${BINARY_NAME}"
+
+            if [ -f "Mosby.icns" ]; then
+              cp "Mosby.icns" "${APP_BUNDLE}/Contents/Resources/AppIcon.icns"
+              ICON_KEY="<key>CFBundleIconFile</key><string>AppIcon</string>"
+            else
+              ICON_KEY=""
+            fi
+
+            cat > "${APP_BUNDLE}/Contents/Info.plist" << EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+              <key>CFBundleExecutable</key>
+              <string>${BINARY_NAME}</string>
+              <key>CFBundleIdentifier</key>
+              <string>${BUNDLE_ID}</string>
+              <key>CFBundleName</key>
+              <string>${APP_NAME}</string>
+              <key>CFBundleDisplayName</key>
+              <string>${APP_NAME}</string>
+              <key>CFBundleVersion</key>
+              <string>${VERSION}</string>
+              <key>CFBundleShortVersionString</key>
+              <string>${VERSION}</string>
+              <key>CFBundlePackageType</key>
+              <string>APPL</string>
+              <key>LSMinimumSystemVersion</key>
+              <string>${MIN_MACOS}</string>
+              <key>NSHighResolutionCapable</key>
+              <true/>
+              <key>NSSupportsAutomaticGraphicsSwitching</key>
+              <true/>
+              ${ICON_KEY}
+          </dict>
+          </plist>
+          EOF
+
+            echo "==> Signing with ad-hoc signature..."
+            codesign --deep --force --sign - "${APP_BUNDLE}"
+
+            echo "==> Creating .dmg..."
+            mkdir dmg-staging
+            cp -r "${APP_BUNDLE}" dmg-staging/
+            ln -s /Applications dmg-staging/Applications
+            hdiutil create \
+              -volname "${APP_NAME}" \
+              -srcfolder dmg-staging \
+              -ov \
+              -format UDZO \
+              -o "${DMG_NAME}"
+            rm -rf dmg-staging
+
+            echo "DMG_NAME=${DMG_NAME}" >> "$GITHUB_ENV"
+          '
+
+      - name: Generate changelog
+        id: changelog
+        run: |
+          PREV_TAG=$(git tag --sort=-version:refname | grep -v "^${GITHUB_REF_NAME}$" | head -1)
+          if [ -n "$PREV_TAG" ]; then
+            RANGE="${PREV_TAG}..${GITHUB_REF_NAME}"
+            SINCE="since \`${PREV_TAG}\`"
+          else
+            RANGE="${GITHUB_REF_NAME}"
+            SINCE="initial release"
+          fi
+
+          CHANGELOG=$(git log "$RANGE" --pretty=format:"- %s" --no-merges)
+
+          {
+            echo "CHANGELOG<<EOF"
+            echo "## What's changed ($SINCE)"
+            echo ""
+            echo "$CHANGELOG"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: Mosby ${{ github.ref_name }}
+          body: ${{ steps.changelog.outputs.CHANGELOG }}
+          files: ${{ env.DMG_NAME }}
+          draft: false
+          prerelease: false
